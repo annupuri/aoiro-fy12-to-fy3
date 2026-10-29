@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aoiro-fy12-to-fy3"
+version = "0.1.0"
+description = "暦年で記帳された『みんなの青色申告』の帳簿から、3月決算の総勘定元帳(PDF)と決算書(xlsx・xls)を作る"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = [
+    "openpyxl>=3.1",
+    "pyyaml>=6.0",
+    "reportlab>=4.0",
+    "xlrd>=2.0",
+    "xlwt>=1.3",
+]
+
+[project.optional-dependencies]
+# ソフトの合計残高試算表(PDF)との照合と、元帳PDFのテストに使う
+verify = ["pdfplumber>=0.11"]
+dev = ["pdfplumber>=0.11", "pytest>=8"]
+
+[project.scripts]
+aoiro-fy12-to-fy3 = "aoiro_fy12_to_fy3.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

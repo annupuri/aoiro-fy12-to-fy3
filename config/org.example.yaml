@@ -1,0 +1,38 @@
+# 団体設定のサンプル（値は架空）。
+# 本番用は団体名などを含むため、データフォルダ側（リポジトリ外）に org.yaml として置く。
+# パスはこのファイルがあるフォルダからの相対パス。
+
+name: 架空会
+address:
+  - 架空県見本市1-2-3
+  - 架空会館内
+# 期番号 = 年度 - term_offset（ソフト上の年度データ N が第(N - term_offset)期）
+term_offset: 1995
+# 最初の期（期首残高を下で与える期）の年度
+first_year: 2017
+accounts: accounts.yaml
+# 仕訳日記帳（CSV: CP932 / xls）。{year} にソフト上の年度が入る
+journal: 仕訳帳/仕訳日記帳-{year}.csv
+# 元帳PDFの日本語フォント。省略時は IPAex ゴシックなどを自動で探す
+# font: /usr/share/fonts/opentype/ipaexfont-gothic/ipaexg.ttf
+
+# 最初の期の期首残高（各科目の通常の向きで正の数）。
+# 補助科目別に管理する科目（任意積立金など）は {補助コード: 金額} で書く
+opening_balances:
+  104: 50000
+  106: 700000
+  306: 40000
+  340: 100000
+  401: 510000
+  409: {2: 50000, 3: 50000}
+
+# 出力ファイル名。{name} 団体名、{term} 期番号、{year} 年度
+outputs:
+  ledger_pdf: 総勘定元帳({name}_第{term}期).pdf
+  financials_xlsx: 決算書({name}_第{term}期).xlsx
+  software_financials_xls: 決算書({name}_第{term}期).xls
+
+# verify コマンドで照合するソフトの出力（glob パターン。複数あれば名前順で最後のもの）
+verify:
+  trial_balance_pdf: 残高試算表/*-{year}年12月-合計残高試算表*.pdf
+  software_financials_xls: 決算書/決算書(*_第{term}期_*).xls

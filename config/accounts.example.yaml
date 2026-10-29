@@ -1,0 +1,53 @@
+# 勘定科目設定のサンプル（科目名・補助科目名は架空）。
+# 本番用は団体固有の補助科目名を含むため、データフォルダ側（リポジトリ外）に置く。
+#
+# category: asset（資産）/ liability（負債）/ net_assets（正味財産）/
+#           revenue（収益）/ cost（売上原価区分の費用）/ expense（販管費）/ suspense（仮勘定）
+# role:     retained … 繰越正味財産（翌期首に当期正味財産増減額を加える）
+#           reserve  … 任意積立金（決算書で補助科目別に表示する）
+# always_show:      金額が0でも正式様式の決算書に行を出す
+# breakdown_by_sub: 正式様式の損益計算書で補助科目別に内訳を出す
+# subs:             補助科目。{名前} または {name, label, always_show}
+#                   label は正式様式の決算書に出す名称（省略時は name）
+# software_name:    ソフトの試算表・決算書での表記が name と違うときに指定する
+
+# 正式様式の損益計算書の区分名
+section_labels:
+  revenue: 収入
+  cost: 援助費
+  expense: 一般管理費
+
+accounts:
+  - {code: 104, name: 当座預金, category: asset, always_show: true, subs: {1: 郵便振替}}
+  - {code: 106, name: 普通預金, category: asset, always_show: true, subs: {1: 架空銀行, 2: 見本銀行}}
+  - {code: 306, name: 未払金, category: liability, always_show: true}
+  - {code: 340, name: 寄付金, category: liability, always_show: true}
+  - {code: 401, name: 繰越正味財産, category: net_assets, role: retained}
+  - code: 409
+    name: 任意積立金
+    category: net_assets
+    role: reserve
+    subs:
+      1: {name: 記念式典積立金}
+      2: {name: 記念行事積立金}
+      3: {name: 部室建替積立金, label: 建替積立金}
+  - code: 500
+    name: 収入
+    category: revenue
+    breakdown_by_sub: true
+    subs:
+      1: {name: 会費収入, always_show: true}
+      2: {name: 式典収入}
+      9: {name: その他, label: その他収入, always_show: true}
+  - {code: 610, name: 援助費（学生）, category: cost, always_show: true}
+  - {code: 615, name: 援助費（監督・コーチ）, category: cost, always_show: true}
+  - {code: 620, name: 援助費（OB・OG）, category: cost, always_show: true}
+  - {code: 722, name: 通信費, category: expense}
+  - {code: 731, name: 印刷製本費, category: expense}
+  - {code: 732, name: 記念式典費, category: expense}
+  - {code: 736, name: 慶弔費, category: expense}
+  - {code: 744, name: 修繕費, category: expense}
+  - {code: 762, name: 支払手数料, category: expense}
+  - {code: 784, name: 会議費, category: expense}
+  - {code: 786, name: 諸会費, category: expense}
+  - {code: 999, name: 複合, category: suspense}
