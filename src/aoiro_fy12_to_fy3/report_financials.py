@@ -41,6 +41,10 @@ class Sheet:
     cells: dict[tuple[int, int], Cell] = field(default_factory=dict)
     merges: list[tuple[int, int, int, int]] = field(default_factory=list)
     widths: dict[int, float] = field(default_factory=dict)
+    # 印刷範囲（例: "A1:K49"）。xlsx だけに設定する
+    print_area: str | None = None
+    # 1ページに収めて印刷する
+    one_page: bool = False
 
     def cell(self, row: int, col: int) -> Cell:
         return self.cells.setdefault((row, col), Cell())
@@ -64,9 +68,22 @@ class Sheet:
                 if r == bottom:
                     sides.add("bottom")
 
+    def outline(self, top: int, bottom: int, left: int, right: int) -> None:
+        """範囲の外枠だけを引く。"""
+        for c in range(left, right + 1):
+            self.cell(top, c).borders.add("top")
+            self.cell(bottom, c).borders.add("bottom")
+        for r in range(top, bottom + 1):
+            self.cell(r, left).borders.add("left")
+            self.cell(r, right).borders.add("right")
+
     def underline(self, row: int, left: int, right: int) -> None:
         for c in range(left, right + 1):
             self.cell(row, c).borders.add("bottom")
+
+    def overline(self, row: int, left: int, right: int) -> None:
+        for c in range(left, right + 1):
+            self.cell(row, c).borders.add("top")
 
 
 @dataclass(frozen=True)
@@ -77,6 +94,8 @@ class Line:
     value: int | None = None
     value_col: int = 0
     bold: bool = False
+    # 見出しを金額の列まで結合して枠で囲む
+    span: bool = False
 
 
 def _date_jp(year: int, month: int, day: int) -> str:
@@ -111,6 +130,9 @@ def _lines(ws: Sheet, lines: list[Line], start: int, label_col: int = 2) -> int:
         ws.put(start + i, label_col, line.label, bold=line.bold, align="center" if line.bold else "left")
         if line.value is not None:
             ws.put(start + i, label_col + 1 + line.value_col, line.value, bold=line.bold, number=True)
+        if line.span:
+            ws.merge(start + i, label_col, start + i, label_col + 1)
+            ws.outline(start + i, start + i, label_col, label_col + 1)
     return start + len(lines) - 1
 
 
@@ -130,6 +152,11 @@ def cover_sheet(config: OrgConfig, fin: Financials) -> Sheet:
     centered(40, config.name, 2, 10)
     for i, line in enumerate(config.address):
         centered(44 + i, line, 2, 10)
+    # 印刷範囲（1ページ）の内側を枠で囲む
+    bottom = max(48, 44 + len(config.address) + 2)
+    ws.outline(2, bottom, 2, 10)
+    ws.print_area = f"A1:K{bottom + 1}"
+    ws.one_page = True
     return ws
 
 
@@ -175,7 +202,7 @@ def official_balance_sheet(config: OrgConfig, fin: Financials) -> Sheet:
     right += [
         Line("          流動負債  計", fin.liability_total),
         Line("負債の部合計", fin.liability_total, bold=True),
-        Line("正　味　財　産　の　部", bold=True),
+        Line("正　味　財　産　の　部", bold=True, span=True),
         Line("  【正味財産】"),
         Line(f"    {fin.result.chart.retained.name}", fin.retained_opening),
         Line("    積立金"),
@@ -217,6 +244,10 @@ def official_income_statement(config: OrgConfig, fin: Financials) -> Sheet:
     lines.append(Line("        当期積立金振替額", -transfer_total, 1))
     lines.append(Line("　　　当期正味財産増減額－当期積立金振替額", fin.net_income - transfer_total, 1))
     ws.box(4, _lines(ws, lines, 4), 2, 4)
+    # 【収入】などの区分の見出しの上に横線を引く
+    for i, line in enumerate(lines):
+        if "【" in line.label:
+            ws.overline(4 + i, 2, 4)
     return ws
 
 
@@ -382,6 +413,16 @@ def save_xlsx(path: Path, sheets: list[Sheet]) -> None:
             if cell.borders:
                 xc.border = Border(**{side: thin for side in cell.borders})
         for r1, c1, r2, c2 in sheet.merges:
+            # openpyxl は結合範囲の外周に左上のセルの罫線を広げるので、外周の罫線をまとめて左上に持たせる
+            edge = {
+                "left": sheet.cells.get((r1, c1)),
+                "right": sheet.cells.get((r1, c2)),
+                "top": sheet.cells.get((r1, c1)),
+                "bottom": sheet.cells.get((r2, c1)),
+            }
+            sides = {side for side, cell in edge.items() if cell and side in cell.borders}
+            if sides:
+                ws.cell(row=r1, column=c1).border = Border(**{side: thin for side in sides})
             ws.merge_cells(start_row=r1, start_column=c1, end_row=r2, end_column=c2)
         for col, width in sheet.widths.items():
             ws.column_dimensions[get_column_letter(col)].width = width
@@ -389,7 +430,9 @@ def save_xlsx(path: Path, sheets: list[Sheet]) -> None:
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
         ws.sheet_properties.pageSetUpPr.fitToPage = True
         ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
+        ws.page_setup.fitToHeight = 1 if sheet.one_page else 0
+        if sheet.print_area:
+            ws.print_area = sheet.print_area
     wb.save(path)
 
 
@@ -420,25 +463,26 @@ def save_xls(path: Path, sheets: list[Sheet]) -> None:
 
     wb = xlwt.Workbook(encoding="utf-8")
     for sheet in sheets:
-        ws = wb.add_sheet(sheet.title)
-        merged = {}
+        # 結合範囲は左上のセルの書式で埋まるので、ほかのセルを各自の罫線で書き直す
+        ws = wb.add_sheet(sheet.title, cell_overwrite_ok=True)
+        merged = set()
         for r1, c1, r2, c2 in sheet.merges:
+            top_left = sheet.cells.get((r1, c1), Cell())
+            ws.write_merge(r1 - 1, r2 - 1, c1 - 1, c2 - 1, top_left.value, style(top_left))
             for r in range(r1, r2 + 1):
                 for c in range(c1, c2 + 1):
-                    merged[(r, c)] = (r1, c1, r2, c2)
+                    merged.add((r, c))
+                    if (r, c) != (r1, c1):
+                        ws.write(r - 1, c - 1, None, style(sheet.cells.get((r, c), Cell())))
         for (r, c), cell in sheet.cells.items():
-            if (r, c) in merged:
-                r1, c1, r2, c2 = merged[(r, c)]
-                if (r, c) == (r1, c1):
-                    ws.write_merge(r1 - 1, r2 - 1, c1 - 1, c2 - 1, cell.value, style(cell))
-                continue
-            ws.write(r - 1, c - 1, cell.value, style(cell))
+            if (r, c) not in merged:
+                ws.write(r - 1, c - 1, cell.value, style(cell))
         for col, width in sheet.widths.items():
             ws.col(col - 1).width = int(width * 256)
         ws.portrait = True
         ws.paper_size_code = 9  # A4
         ws.fit_width_to_pages = 1
-        ws.fit_height_to_pages = 0
+        ws.fit_height_to_pages = 1 if sheet.one_page else 0
     wb.save(str(path))
 
 
