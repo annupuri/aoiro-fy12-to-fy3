@@ -96,6 +96,8 @@ class Line:
     bold: bool = False
     # 見出しを金額の列まで結合して枠で囲む
     span: bool = False
+    # 科目と金額のセルをそれぞれ枠で囲む
+    boxed: bool = False
 
 
 def _date_jp(year: int, month: int, day: int) -> str:
@@ -133,6 +135,9 @@ def _lines(ws: Sheet, lines: list[Line], start: int, label_col: int = 2) -> int:
         if line.span:
             ws.merge(start + i, label_col, start + i, label_col + 1)
             ws.outline(start + i, start + i, label_col, label_col + 1)
+        if line.boxed:
+            ws.outline(start + i, start + i, label_col, label_col)
+            ws.outline(start + i, start + i, label_col + 1, label_col + 1)
     return start + len(lines) - 1
 
 
@@ -201,7 +206,7 @@ def official_balance_sheet(config: OrgConfig, fin: Financials) -> Sheet:
     right += [Line(f"      {a.name}", v) for a, v in fin.liabilities]
     right += [
         Line("          流動負債  計", fin.liability_total),
-        Line("負債の部合計", fin.liability_total, bold=True),
+        Line("負債の部合計", fin.liability_total, bold=True, boxed=True),
         Line("正　味　財　産　の　部", bold=True, span=True),
         Line("  【正味財産】"),
         Line(f"    {fin.result.chart.retained.name}", fin.retained_opening),
@@ -212,7 +217,7 @@ def official_balance_sheet(config: OrgConfig, fin: Financials) -> Sheet:
         Line("      積立金　計", fin.reserve_total),
         Line("    　当期積立金振替額", fin.reserve_transfer_total),
         Line("    当期正味財産増減額", fin.net_income),
-        Line("正味財産の部合計", fin.capital_total, bold=True),
+        Line("正味財産の部合計", fin.capital_total, bold=True, boxed=True),
     ]
     return _balance_sheet(
         config, fin, "負　債　・　正　味　財　産　の　部", left, right,
