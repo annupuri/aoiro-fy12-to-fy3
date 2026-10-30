@@ -26,11 +26,12 @@ opening_balances:
   401: 510000
   409: {2: 50000, 3: 50000}
 
-# 出力ファイル名。{name} 団体名、{term} 期番号、{year} 年度
+# 出力ファイル名（--out のフォルダからの相対パス。途中のフォルダは自動で作る）。
+# {name} 団体名、{term} 期番号、{year} 年度
 outputs:
-  ledger_pdf: 総勘定元帳({name}_第{term}期).pdf
-  financials_xlsx: 決算書({name}_第{term}期).xlsx
-  software_financials_xls: 決算書({name}_第{term}期).xls
+  ledger_pdf: 総勘定元帳/総勘定元帳({name}_第{term}期).pdf
+  financials_xlsx: 決算書/決算書({name}_第{term}期).xlsx
+  software_financials_xls: 決算書/決算書({name}_第{term}期).xls
 
 # verify コマンドで照合するソフトの出力（glob パターン。複数あれば名前順で最後のもの）
 verify:

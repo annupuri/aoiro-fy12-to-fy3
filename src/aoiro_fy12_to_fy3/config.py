@@ -141,9 +141,9 @@ class Term:
 
 
 DEFAULT_OUTPUTS = {
-    "ledger_pdf": "総勘定元帳({name}_第{term}期).pdf",
-    "financials_xlsx": "決算書({name}_第{term}期).xlsx",
-    "software_financials_xls": "決算書({name}_第{term}期).xls",
+    "ledger_pdf": "総勘定元帳/総勘定元帳({name}_第{term}期).pdf",
+    "financials_xlsx": "決算書/決算書({name}_第{term}期).xlsx",
+    "software_financials_xls": "決算書/決算書({name}_第{term}期).xls",
 }
 
 

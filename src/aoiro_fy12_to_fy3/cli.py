@@ -74,13 +74,16 @@ def cmd_build(args: argparse.Namespace) -> int:
         fin = build_financials(result)
         _log(f"第{result.term.number}期（{year}年度）")
         _log_excluded(result)
+        # 出力ファイル名の設定にはフォルダを含められる（例: 総勘定元帳/総勘定元帳(…).pdf）
         ledger = out / config.output_name("ledger_pdf", year)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
         pages = write_ledger_pdf(ledger, config.name, result, config.font)
-        _log(f"  {ledger.name}（{pages}頁）")
+        _log(f"  {ledger.relative_to(out)}（{pages}頁）")
         for kind, writer in (("financials_xlsx", write_official), ("software_financials_xls", write_software)):
             path = out / config.output_name(kind, year)
+            path.parent.mkdir(parents=True, exist_ok=True)
             writer(path, config, fin)
-            _log(f"  {path.name}")
+            _log(f"  {path.relative_to(out)}")
     return 0
 
 

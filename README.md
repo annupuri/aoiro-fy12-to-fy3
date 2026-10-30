@@ -69,8 +69,9 @@ python -m aoiro_fy12_to_fy3 verify --config <データフォルダ>/org.yaml --a
    ```sh
    python -m aoiro_fy12_to_fy3 build --config <データフォルダ>/org.yaml --year N --out out
    ```
-   `総勘定元帳(…_第NN期).pdf`（監査用）、`決算書(…_第NN期).xlsx`（総会用の正式様式）、
-   `決算書(…_第NN期).xls`（ソフト様式。ソフトの決算書と見比べる検証用）ができる。
+   `out/総勘定元帳/総勘定元帳(…_第NN期).pdf`（監査用）、`out/決算書/決算書(…_第NN期).xlsx`（総会用の正式様式）、
+   `out/決算書/決算書(…_第NN期).xls`（ソフト様式。ソフトの決算書と見比べる検証用）ができる。
+   出力先のフォルダ構成とファイル名は `org.yaml` の `outputs` で変えられる。
    金額0円の仕訳は元帳から除かれ、実行ログに一覧が出るので、意図どおりか確認する。
 
 ## テスト

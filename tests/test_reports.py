@@ -149,8 +149,8 @@ def test_ledger_pdf(config, tmp_path):
 def test_cli_build(org_dir, tmp_path, capsys):
     out = tmp_path / "out"
     assert main(["build", "--config", str(org_dir / "org.yaml"), "--all", "--out", str(out)]) == 0
-    names = sorted(p.name for p in out.iterdir())
-    assert "総勘定元帳(架空会_第23期).pdf" in names
-    assert "決算書(架空会_第22期).xlsx" in names
-    assert "決算書(架空会_第22期).xls" in names
+    names = sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file())
+    assert "総勘定元帳/総勘定元帳(架空会_第23期).pdf" in names
+    assert "決算書/決算書(架空会_第22期).xlsx" in names
+    assert "決算書/決算書(架空会_第22期).xls" in names
     assert "金額0円の行を元帳から除外: 伝票3" in capsys.readouterr().err
