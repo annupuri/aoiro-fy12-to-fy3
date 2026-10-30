@@ -80,3 +80,7 @@ python -m aoiro_fy12_to_fy3 verify --config <データフォルダ>/org.yaml --a
 .venv/bin/pytest                                   # 架空データでのテスト
 AOIRO_CONFIG=<データフォルダ>/org.yaml .venv/bin/pytest   # 本番データでの照合も行う
 ```
+
+## 開発に参加するには
+
+[CONTRIBUTING.md](CONTRIBUTING.md) を参照。
