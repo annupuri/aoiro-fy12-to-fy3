@@ -15,7 +15,7 @@ from . import checks
 from .config import ConfigError, OrgConfig, load_config
 from .ledger import LedgerError, TermResult, compute_terms
 from .load import JournalError
-from .report_financials import write_official, write_software
+from .report_financials import write_official, write_official_pdf, write_software
 from .report_ledger_pdf import FontNotFoundError, write_ledger_pdf
 from .statements import build_financials
 
@@ -84,6 +84,10 @@ def cmd_build(args: argparse.Namespace) -> int:
             path.parent.mkdir(parents=True, exist_ok=True)
             writer(path, config, fin)
             _log(f"  {path.relative_to(out)}")
+        path = out / config.output_name("financials_pdf", year)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pages = write_official_pdf(path, config, fin)
+        _log(f"  {path.relative_to(out)}（{pages}頁）")
     return 0
 
 

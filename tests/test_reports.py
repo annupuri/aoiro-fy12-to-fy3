@@ -5,7 +5,7 @@ import pytest
 
 from aoiro_fy12_to_fy3.cli import main
 from aoiro_fy12_to_fy3.ledger import compute_terms
-from aoiro_fy12_to_fy3.report_financials import software_values, write_official, write_software
+from aoiro_fy12_to_fy3.report_financials import software_values, write_official, write_official_pdf, write_software
 from aoiro_fy12_to_fy3.verify import normalize, parse_software_financials_xls
 from aoiro_fy12_to_fy3.report_ledger_pdf import FontNotFoundError, account_rows, find_font, write_ledger_pdf
 from aoiro_fy12_to_fy3.statements import build_financials
@@ -146,6 +146,24 @@ def test_ledger_pdf(config, tmp_path):
 
 
 @pytest.mark.skipif(not _font_available(), reason="日本語フォントがない")
+def test_official_pdf(config, tmp_path):
+    pdfplumber = pytest.importorskip("pdfplumber")
+    (r,) = compute_terms(config, 2017)
+    fin = build_financials(r)
+    path = tmp_path / "official.pdf"
+    # 表紙・貸借対照表・損益計算書が1ページずつ
+    assert write_official_pdf(path, config, fin) == 3
+    with pdfplumber.open(path) as pdf:
+        cover, bs, pl = (p.extract_text() for p in pdf.pages)
+    assert "第 22期" in cover and "架空会" in cover
+    assert "繰越正味財産" in bs and "510,000" in bs
+    assert "△ 20,000" in bs  # 当期積立金振替額
+    assert f"{fin.asset_total:,}" in bs
+    assert "当期正味財産増減額－当期積立金振替額" in pl
+    assert f"△ {-fin.net_income:,}" in pl
+
+
+@pytest.mark.skipif(not _font_available(), reason="日本語フォントがない")
 def test_cli_build(org_dir, tmp_path, capsys):
     out = tmp_path / "out"
     assert main(["build", "--config", str(org_dir / "org.yaml"), "--all", "--out", str(out)]) == 0
@@ -153,4 +171,5 @@ def test_cli_build(org_dir, tmp_path, capsys):
     assert "総勘定元帳/総勘定元帳(架空会_第23期).pdf" in names
     assert "決算書/決算書(架空会_第22期).xlsx" in names
     assert "決算書/決算書(架空会_第22期).xls" in names
+    assert "決算書/決算書(架空会_第22期).pdf" in names
     assert "金額0円の行を元帳から除外: 伝票3" in capsys.readouterr().err
