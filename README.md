@@ -1,7 +1,7 @@
 # aoiro-fy12-to-fy3
 
 会計ソフト『みんなの青色申告』に暦年（1/1〜12/31）の形で記帳した帳簿から、
-3月決算（4/1〜翌3/31）の総勘定元帳（PDF）と決算書（xlsx）を作るツール。
+3月決算（4/1〜翌3/31）の総勘定元帳（PDF）と決算書（xlsx・PDF）を作るツール。
 
 ソフト上の年度データ N は、そのまま N年4月1日〜(N+1)年3月31日 の1期分として扱う。
 N年1〜3月の日付は (N+1)年に、決算月（`N/13`）は (N+1)/03/31 の決算整理に読み替える。
@@ -11,8 +11,10 @@ N年1〜3月の日付は (N+1)年に、決算月（`N/13`）は (N+1)/03/31 の�
 ```sh
 python -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-# 元帳PDFの日本語フォント（見つからなければ Windows の BIZ UDゴシック等を探す）
+# 元帳・決算書PDFの日本語フォント（見つからなければ Windows の BIZ UDゴシック等を探す）
 sudo apt install fonts-ipaexfont-gothic
+# 決算書PDFの明朝体の部分に使う（任意。なければゴシック体で代用する）
+sudo apt install fonts-ipaexfont-mincho
 ```
 
 ## 設定とデータ
@@ -30,7 +32,7 @@ sudo apt install fonts-ipaexfont-gothic
 ## 使い方
 
 ```sh
-# 総勘定元帳PDF・決算書（正式様式の xlsx と、検証用のソフト様式の xls）を作る
+# 総勘定元帳PDF・決算書（正式様式の xlsx と PDF、検証用のソフト様式の xls）を作る
 python -m aoiro_fy12_to_fy3 build --config <データフォルダ>/org.yaml --year 2017 --out out
 python -m aoiro_fy12_to_fy3 build --config <データフォルダ>/org.yaml --all --out out
 
@@ -70,7 +72,9 @@ python -m aoiro_fy12_to_fy3 verify --config <データフォルダ>/org.yaml --a
    python -m aoiro_fy12_to_fy3 build --config <データフォルダ>/org.yaml --year N --out out
    ```
    `out/総勘定元帳/総勘定元帳(…_第NN期).pdf`（監査用）、`out/決算書/決算書(…_第NN期).xlsx`（総会用の正式様式）、
+   `out/決算書/決算書(…_第NN期).pdf`（正式様式を印刷した形。表紙・貸借対照表・損益計算書の3頁）、
    `out/決算書/決算書(…_第NN期).xls`（ソフト様式。ソフトの決算書と見比べる検証用）ができる。
+   PDF は Excel を使わずにツールが直接描くので、書体は IPAex フォントなどになる（Excel の「PDF にエクスポート」とは見た目が少し違う）。
    出力先のフォルダ構成とファイル名は `org.yaml` の `outputs` で変えられる。
    金額0円の仕訳は元帳から除かれ、実行ログに一覧が出るので、意図どおりか確認する。
 

@@ -1,10 +1,10 @@
 """決算書の出力。
 
 2つの様式を出す。
-- official: 総会で報告してきた過去の正式な決算書（第20・21期）の様式。xlsx
+- official: 総会で報告してきた過去の正式な決算書（第20・21期）の様式。xlsx と、それを印刷した形の PDF
 - software: 『みんなの青色申告』が出力する決算書の様式。ソフトの出力と突き合わせる検証用。xls
 
-シートの内容はいったん Sheet に組み立て、xlsx（openpyxl）または xls（xlwt）で書き出す。
+シートの内容はいったん Sheet に組み立て、xlsx（openpyxl）、xls（xlwt）、PDF（reportlab）で書き出す。
 """
 
 from __future__ import annotations
@@ -491,8 +491,175 @@ def save_xls(path: Path, sheets: list[Sheet]) -> None:
     wb.save(str(path))
 
 
+PDF_GOTHIC = "FinancialsGothic"
+PDF_MINCHO = "FinancialsMincho"
+# Excel の既定の余白（左右 0.7 インチ、上下 0.75 インチ）
+PDF_MARGIN_X = 0.7 * 72
+PDF_MARGIN_Y = 0.75 * 72
+DEFAULT_COL_WIDTH = 8.43
+DEFAULT_ROW_HEIGHT = 13.5
+PDF_LINE_WIDTH = 0.5
+
+
+def _col_points(width: float) -> float:
+    """Excel の列幅（標準の文字の数）をポイントにする（1文字 7 ピクセル、96 dpi）。"""
+    return (width * 7 + 5) * 0.75
+
+
+def _row_points(sheet: Sheet, row: int) -> float:
+    sizes = [c.size for (r, _), c in sheet.cells.items() if r == row and c.value not in (None, "")]
+    return max([DEFAULT_ROW_HEIGHT] + [size * 1.25 for size in sizes])
+
+
+def _extent(sheet: Sheet) -> tuple[int, int]:
+    """印刷する範囲の最後の行と列。"""
+    if sheet.print_area:
+        from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
+
+        col, row = coordinate_from_string(sheet.print_area.split(":")[-1])
+        return row, column_index_from_string(col)
+    rows = [r for r, _ in sheet.cells] + [m[2] for m in sheet.merges]
+    cols = [c for _, c in sheet.cells] + [m[3] for m in sheet.merges]
+    return max(rows), max(cols)
+
+
+def _cell_text(cell: Cell) -> str:
+    if cell.value is None:
+        return ""
+    if cell.number and isinstance(cell.value, int):
+        # NUMBER_FORMAT と同じ表示
+        return f"{cell.value:,}" if cell.value >= 0 else f"△ {-cell.value:,}"
+    return str(cell.value)
+
+
+def _draw_pdf_page(canvas, sheet: Sheet, rows: list[int], xs: list[float], heights: list[float],
+                   scale: float, fonts: dict[str, str], origin: tuple[float, float]) -> None:
+    """シートの rows の行を1ページに描く。xs は列の左端の位置、heights は行の高さ（どちらもポイント、拡大縮小前）。"""
+    from reportlab.pdfbase import pdfmetrics
+
+    ox, oy = origin
+    top: dict[int, float] = {}
+    y = 0.0
+    for r in rows:
+        top[r] = y
+        y += heights[r - 1]
+    n_cols = len(xs) - 1
+
+    def px(x: float) -> float:
+        return ox + x * scale
+
+    def py(y: float) -> float:
+        return oy - y * scale
+
+    merged: dict[tuple[int, int], tuple[int, int, int, int]] = {}
+    for m in sheet.merges:
+        r1, c1, r2, c2 = m
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                merged[(r, c)] = m
+
+    visible = [(rc, cell) for rc, cell in sheet.cells.items() if rc[0] in top and rc[1] <= n_cols]
+    for (r, c), cell in visible:
+        r1, c1, r2, c2 = merged.get((r, c), (r, c, r, c))
+        text = _cell_text(cell)
+        if (r, c) != (r1, c1) or not text:
+            continue
+        x0, x1 = px(xs[c1 - 1]), px(xs[min(c2, n_cols)])
+        y0 = py(top[r1])
+        y1 = py(top[r1] + sum(heights[r1 - 1:r2]))
+        name = fonts.get(cell.font, PDF_MINCHO)
+        size = cell.size * scale
+        width = pdfmetrics.stringWidth(text, name, size)
+        align = cell.align or ("right" if isinstance(cell.value, (int, float)) else "left")
+        pad = 2.5 * scale
+        if align == "right":
+            tx = x1 - pad - width
+        elif align == "center":
+            tx = (x0 + x1 - width) / 2
+        else:
+            tx = x0 + pad
+        # 上下中央にそろえる
+        t = canvas.beginText(tx, (y0 + y1) / 2 - size * 0.35)
+        t.setFont(name, size)
+        # 太字の書体がないので、文字の輪郭を線でなぞって太く見せる。
+        # 描き方の設定は後の文字にも引き継がれるので、太字でない文字でも毎回指定する
+        if cell.bold:
+            canvas.setLineWidth(size * 0.04)
+        t.setTextRenderMode(2 if cell.bold else 0)
+        t.textOut(text)
+        canvas.drawText(t)
+
+    canvas.setLineWidth(PDF_LINE_WIDTH)
+    # セルごとに引いた線の継ぎ目が切れないよう、線の端を少し伸ばす
+    canvas.setLineCap(2)
+    for (r, c), cell in visible:
+        r1, c1, r2, c2 = merged.get((r, c), (r, c, r, c))
+        x0, x1 = px(xs[c - 1]), px(xs[c])
+        y0, y1 = py(top[r]), py(top[r] + heights[r - 1])
+        # 結合範囲の内側の線は引かない
+        if "left" in cell.borders and c == c1:
+            canvas.line(x0, y0, x0, y1)
+        if "right" in cell.borders and c == c2:
+            canvas.line(x1, y0, x1, y1)
+        if "top" in cell.borders and r == r1:
+            canvas.line(x0, y0, x1, y0)
+        if "bottom" in cell.borders and r == r2:
+            canvas.line(x0, y1, x1, y1)
+
+
+def save_pdf(path: Path, sheets: list[Sheet], font: Path | None = None) -> int:
+    """シートを A4 縦の PDF に描き、ページ数を返す。xlsx の印刷設定と同じく、幅を1ページに収め、
+    one_page のシートは1ページに収める。font を指定したときは、明朝体の部分もそのフォントで描く。"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen.canvas import Canvas
+
+    from .report_ledger_pdf import MINCHO_CANDIDATES, FontNotFoundError, find_font, register_font
+
+    gothic = find_font(font)
+    try:
+        mincho = font or find_font(None, MINCHO_CANDIDATES)
+    except FontNotFoundError:
+        mincho = gothic
+    register_font(gothic, PDF_GOTHIC)
+    register_font(mincho, PDF_MINCHO)
+    fonts = {GOTHIC: PDF_GOTHIC, MINCHO: PDF_MINCHO}
+
+    page_w, page_h = A4
+    avail_w, avail_h = page_w - 2 * PDF_MARGIN_X, page_h - 2 * PDF_MARGIN_Y
+    canvas = Canvas(str(path), pagesize=A4)
+    pages = 0
+    for sheet in sheets:
+        n_rows, n_cols = _extent(sheet)
+        xs = [0.0]
+        for c in range(1, n_cols + 1):
+            xs.append(xs[-1] + _col_points(sheet.widths.get(c, DEFAULT_COL_WIDTH)))
+        heights = [_row_points(sheet, r) for r in range(1, n_rows + 1)]
+        scale = min(1.0, avail_w / xs[-1])
+        if sheet.one_page:
+            scale = min(scale, avail_h / sum(heights))
+        groups: list[list[int]] = [[]]
+        used = 0.0
+        for r, h in enumerate(heights, 1):
+            if groups[-1] and (used + h) * scale > avail_h:
+                groups.append([])
+                used = 0.0
+            groups[-1].append(r)
+            used += h
+        for rows in groups:
+            _draw_pdf_page(canvas, sheet, rows, xs, heights, scale, fonts, (PDF_MARGIN_X, page_h - PDF_MARGIN_Y))
+            canvas.showPage()
+            pages += 1
+    canvas.save()
+    return pages
+
+
 def write_official(path: Path, config: OrgConfig, fin: Financials) -> None:
     save_xlsx(path, official_sheets(config, fin))
+
+
+def write_official_pdf(path: Path, config: OrgConfig, fin: Financials) -> int:
+    """正式様式の決算書を PDF で出力し、ページ数を返す。"""
+    return save_pdf(path, official_sheets(config, fin), config.font)
 
 
 def write_software(path: Path, config: OrgConfig, fin: Financials) -> None:

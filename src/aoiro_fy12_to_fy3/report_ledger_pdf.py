@@ -29,6 +29,17 @@ FONT_CANDIDATES = (
     "/mnt/c/Windows/Fonts/msgothic.ttc",
     "C:/Windows/Fonts/msgothic.ttc",
 )
+# 決算書PDFの明朝体の部分に使う（見つからなければゴシック体で代用する）
+MINCHO_CANDIDATES = (
+    "/usr/share/fonts/opentype/ipaexfont-mincho/ipaexm.ttf",
+    "/usr/share/fonts/truetype/ipaexfont-mincho/ipaexm.ttf",
+    "/usr/share/fonts/opentype/ipafont-mincho/ipam.ttf",
+    "/usr/share/fonts/truetype/fonts-japanese-mincho.ttf",
+    "/mnt/c/Windows/Fonts/BIZ-UDMinchoM.ttc",
+    "C:/Windows/Fonts/BIZ-UDMinchoM.ttc",
+    "/mnt/c/Windows/Fonts/msmincho.ttc",
+    "C:/Windows/Fonts/msmincho.ttc",
+)
 
 PAGE_W, PAGE_H = A4
 MARGIN_X = 28
@@ -46,12 +57,12 @@ class FontNotFoundError(FileNotFoundError):
     pass
 
 
-def find_font(preferred: Path | None = None) -> Path:
+def find_font(preferred: Path | None = None, candidates: tuple[str, ...] = FONT_CANDIDATES) -> Path:
     if preferred is not None:
         if not preferred.exists():
             raise FontNotFoundError(f"設定ファイルで指定したフォントがありません: {preferred}")
         return preferred
-    for candidate in FONT_CANDIDATES:
+    for candidate in candidates:
         path = Path(candidate)
         if path.exists():
             return path
@@ -61,13 +72,13 @@ def find_font(preferred: Path | None = None) -> Path:
     )
 
 
-def register_font(path: Path) -> None:
-    if FONT_NAME in pdfmetrics.getRegisteredFontNames():
+def register_font(path: Path, name: str = FONT_NAME) -> None:
+    if name in pdfmetrics.getRegisteredFontNames():
         return
     if path.suffix.lower() == ".ttc":
-        pdfmetrics.registerFont(TTFont(FONT_NAME, str(path), subfontIndex=0))
+        pdfmetrics.registerFont(TTFont(name, str(path), subfontIndex=0))
     else:
-        pdfmetrics.registerFont(TTFont(FONT_NAME, str(path)))
+        pdfmetrics.registerFont(TTFont(name, str(path)))
 
 
 @dataclass(frozen=True)
