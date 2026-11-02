@@ -164,6 +164,27 @@ def test_official_pdf(config, tmp_path):
 
 
 @pytest.mark.skipif(not _font_available(), reason="日本語フォントがない")
+def test_official_pdf_bold_only_titles(config, tmp_path):
+    """太字（文字の輪郭をなぞる描き方 2 Tr）は表題だけで、描いた後に通常の描き方へ戻す。"""
+    pytest.importorskip("pdfplumber")
+    from pdfminer.pdftypes import resolve1
+    import pdfplumber
+
+    (r,) = compute_terms(config, 2017)
+    path = tmp_path / "official.pdf"
+    write_official_pdf(path, config, build_financials(r))
+    with pdfplumber.open(path) as pdf:
+        for page in pdf.pages[1:]:
+            contents = resolve1(page.page_obj.attrs["Contents"])
+            data = b"".join(resolve1(s).get_data() for s in (contents if isinstance(contents, list) else [contents]))
+            assert data.count(b"2 Tr") == 1
+            # 太字の文字は q … Q で囲まれ、Q で描き方の設定が元に戻る
+            before, after = data.split(b"2 Tr")
+            assert before.rfind(b"q") > before.rfind(b"Q")
+            assert after.find(b"Q") < after.find(b"BT")
+
+
+@pytest.mark.skipif(not _font_available(), reason="日本語フォントがない")
 def test_cli_build(org_dir, tmp_path, capsys):
     out = tmp_path / "out"
     assert main(["build", "--config", str(org_dir / "org.yaml"), "--all", "--out", str(out)]) == 0

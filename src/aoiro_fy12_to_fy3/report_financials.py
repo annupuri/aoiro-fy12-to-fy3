@@ -584,13 +584,17 @@ def _draw_pdf_page(canvas, sheet: Sheet, rows: list[int], xs: list[float], heigh
         t = canvas.beginText(tx, (y0 + y1) / 2 - size * 0.35)
         t.setFont(name, size)
         # 太字の書体がないので、文字の輪郭を線でなぞって太く見せる。線が重く見えるので、表の表題だけを太字にする。
-        # 描き方の設定は後の文字にも引き継がれるので、太字でない文字でも毎回指定する
+        # 描き方の設定は後の文字にも引き継がれ、reportlab は通常の描き方に戻す指示を省くので、
+        # 太字の文字は saveState / restoreState で囲んで設定を元に戻す
         bold = cell.bold and cell.size >= TITLE_SIZE
         if bold:
+            canvas.saveState()
             canvas.setLineWidth(size * 0.04)
-        t.setTextRenderMode(2 if bold else 0)
+            t.setTextRenderMode(2)
         t.textOut(text)
         canvas.drawText(t)
+        if bold:
+            canvas.restoreState()
 
     canvas.setLineWidth(PDF_LINE_WIDTH)
     # セルごとに引いた線の継ぎ目が切れないよう、線の端を少し伸ばす
