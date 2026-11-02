@@ -20,6 +20,8 @@ GOTHIC = "ＭＳ ゴシック"
 NUMBER_FORMAT = '#,##0;"△ "#,##0'
 TAX_NOTE = "[税込]（単位：円）"
 BS_SHEET = "貸借対照表"
+# 表の表題（貸借対照表・損益計算書など）の文字の大きさ
+TITLE_SIZE = 16
 
 
 @dataclass
@@ -115,7 +117,7 @@ def as_of_text(fin: Financials) -> str:
 
 def _title(ws: Sheet, text: str, last_col: int, org: str, period: str) -> None:
     ws.merge(1, 2, 1, last_col)
-    ws.put(1, 2, text, bold=True, size=16, font=GOTHIC, align="center")
+    ws.put(1, 2, text, bold=True, size=TITLE_SIZE, font=GOTHIC, align="center")
     ws.put(2, last_col, TAX_NOTE, size=9, font=GOTHIC, align="right")
     ws.put(3, 2, org)
     ws.put(3, last_col, period, align="right")
@@ -350,7 +352,7 @@ def software_expense_breakdown(config: OrgConfig, fin: Financials) -> Sheet:
     ws = Sheet("販売費及び一般管理費内訳書")
     _widths(ws, {2: 38.0, 3: 18.0, 4: 18.0})
     ws.merge(1, 2, 1, 4)
-    ws.put(1, 2, "販売費及び一般管理費内訳書", bold=True, size=16, font=GOTHIC, align="center")
+    ws.put(1, 2, "販売費及び一般管理費内訳書", bold=True, size=TITLE_SIZE, font=GOTHIC, align="center")
     ws.put(2, 4, TAX_NOTE, size=9, font=GOTHIC, align="right")
     ws.put(3, 2, config.name)
     ws.put(3, 4, period_text(fin), align="right")
@@ -581,11 +583,12 @@ def _draw_pdf_page(canvas, sheet: Sheet, rows: list[int], xs: list[float], heigh
         # 上下中央にそろえる
         t = canvas.beginText(tx, (y0 + y1) / 2 - size * 0.35)
         t.setFont(name, size)
-        # 太字の書体がないので、文字の輪郭を線でなぞって太く見せる。
+        # 太字の書体がないので、文字の輪郭を線でなぞって太く見せる。線が重く見えるので、表の表題だけを太字にする。
         # 描き方の設定は後の文字にも引き継がれるので、太字でない文字でも毎回指定する
-        if cell.bold:
+        bold = cell.bold and cell.size >= TITLE_SIZE
+        if bold:
             canvas.setLineWidth(size * 0.04)
-        t.setTextRenderMode(2 if cell.bold else 0)
+        t.setTextRenderMode(2 if bold else 0)
         t.textOut(text)
         canvas.drawText(t)
 
